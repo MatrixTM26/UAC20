@@ -1,4 +1,4 @@
-# UAC20 GROUP PHP Webshell backdoor
+# UAC20 PHP Webshell backdoor
 
 Created for red teaming and penetration testing.
 
@@ -31,8 +31,8 @@ Another panel overview
 
 # <img src="https://cdn.simpleicons.org/securityscorecard/ff0000" width="18"> Security Notes
 
-> [!IMPORTANT]
-> This is early development version of this shell
+> [!CAUTION]
+> Just use this webshell in platform that you has authorized for penetration testing only.
 
 ## AUTHENTICATION
 
